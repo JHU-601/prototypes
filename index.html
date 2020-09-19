@@ -45,6 +45,51 @@
 
     <h1>Clue-Less</h1>
     <p>This is a test</p>
+    <h2>Render Method 1: Table</h2>
+    <p>We use an HTML table to render the gameboard.</p>
+    <table class="table" id="gameboard">
+      <tr>
+        <td class="room">Study</td>
+        <td class="passageway">(passageway)</td>
+        <td class="room">Hall</td>
+        <td class="passageway">(passageway)</td>
+        <td class="room">Lounge</td>
+      </tr>
+      <tr>
+        <td class="passageway">(passageway)</td>
+        <td></td>
+        <td class="passageway">(passageway)</td>
+        <td></td>
+        <td class="passageway">(passageway)</td>
+      </tr>
+      <tr>
+        <td class="room">Library</td>
+        <td class="passageway">(passageway)</td>
+        <td class="room">Billiard Room</td>
+        <td class="passageway">(passageway)</td>
+        <td class="room">Dining Room</td>
+      </tr>
+      <tr>
+        <td class="passageway">(passageway)</td>
+        <td></td>
+        <td class="passageway">(passageway)</td>
+        <td></td>
+        <td class="passageway">(passageway)</td>
+      </tr>
+      <tr>
+        <td class="room">Conservatory</td>
+        <td class="passageway">(passageway)</td>
+        <td class="room">Ballroom</td>
+        <td class="passageway">(passageway)</td>
+        <td class="room">Kitchen</td>
+      </tr>
+    </table>
+    <h2>Render Method 2: Divs</h2>
+    <p>We apply custom CSS style to a bunch of div elements to make it happen.</p>
+    (TBD)
+    <h2>Render Method 3: Canvas</h2>
+    <p>We use an HTML canvas to do custom rendering</p>
+    <canvas id="gameboard"></canvas>
   </div>
 
   <!-- JQuery -->
