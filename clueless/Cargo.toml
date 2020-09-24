@@ -1,0 +1,18 @@
+[package]
+name = "clueless"
+version = "0.1.0"
+authors = ["Ken Johnson <ken.johnso93@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[workspace]
+clueless-common = { path = "clueless-common" }
+clueless-client = { path = "clueless-client" }
+clueless-server = { path = "clueless-server" }
+
+[dependencies]
+warp = "0.2"
+clueless-common = { path = "clueless-common" }
+clueless-client = { path = "clueless-client" }
+clueless-server = { path = "clueless-server" }
