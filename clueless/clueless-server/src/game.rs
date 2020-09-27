@@ -2,12 +2,34 @@ use super::*;
 use crate::user::*;
 use std::ops::Deref;
 
+static ALL_CHARACTERS: Vec<Character> = vec![
+    Character::Yellow,
+    Character::Red,
+    Character::Purple,
+    Character::Green,
+    Character::White,
+    Character::Blue,
+];
+
 #[derive(Clone, Default)]
 pub struct Games {
     games: Arc<RwLock<HashMap<GameId, Game>>>,
 }
 
 impl Games {
+    pub async fn available_users(&self, game_id: GameId, users: &Users) -> Option<Vec<Character>> {
+        if let Some(game) = self.games.read().await.get(&game_id) {
+            let mut available = ALL_CHARACTERS.clone();
+            while let Some(user_id) = game.user_ids().iter() {
+                
+            }
+
+        } else {
+            None
+        }
+
+    }
+
     pub async fn add_user(&self, user_id: UserId, game_id: GameId, users: &Users) -> bool {
         match self.games.write().await.get_mut(&game_id) {
             Some(game) => {
@@ -59,6 +81,7 @@ impl PreGame {
         for id in self.user_registrations.iter_mut() {
             if id.is_none() {
                 *id = Some(user_id);
+                break;
             }
         }
 
@@ -97,7 +120,11 @@ pub enum Game {
 impl Game {
     fn full(&self) -> bool {
         match self {
-            Self::Waiting(game) => game.user_registrations.iter().all(|reg| reg.is_some()),
+            Self::Waiting(game) => {
+                eprintln!("{:#?}", game.user_registrations);
+
+                game.user_registrations.iter().all(|reg| reg.is_some())
+            },
             _ => true,
         }
     }
@@ -108,6 +135,8 @@ impl Game {
             _ => false,
         }
     }
+
+    async fn 
 }
 
 impl Default for Game {

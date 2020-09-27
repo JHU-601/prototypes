@@ -23,10 +23,28 @@ pub async fn handle_user_message(id: UserId, msg: Message, users: &Users, games:
         GameMessage::JoinGame(game_id) => {
             join_game(id, game_id, users, games).await;
         },
+        GameMessage::Register(reg) => handle_registration(id, reg, users, games).await,
         other => {
             eprintln!("Got message {:?}", other);
             return;
         }
+    };
+}
+
+pub async fn handle_registration(user_id: UserId, msg: Register, users: &Users, games: &Games) {
+    if let Some(game_id) = users.user_game(user_id) {
+
+    }
+    let game_id = if let Some(user) = users.write().await.get_mut(&user_id) {
+        match user.register(msg.display_name.clone(), msg.character) {
+            Ok(_) => user.user_id().expect("registered a user not in game"),
+            Err(_) => {
+                eprintln!("invalid registration");
+                return;
+            }
+        }
+    } else {
+        return;
     };
 }
 
@@ -36,6 +54,19 @@ pub struct Users {
 }
 
 impl Users {
+    pub async fn user_action<F, G>(&self, user_id: UserId, action_fn: F) -> Result<G, ApiError>
+    where F: Fn(&User) -> G
+    {
+        match self.users.read().await.get(user_id) {
+            Some(user) => action_fn(user),
+            None => Err(ApiError::NoSuchUser),
+        }
+    }
+
+    pub async fn get_user(&self, user_id: UserId) -> Option<&User> {
+        self.users.read().await().get(user_id)
+    }
+
     pub async fn send_to_user(&self, user_id: UserId, msg: GameMessage) {
         match self.read().await.get(&user_id) {
             Some(user) => user.send(msg),
@@ -50,6 +81,11 @@ impl Users {
             false
         }
     }
+
+    pub async fn user_game(&self, user_id: UserId) -> Option<GameId> {
+        self.users.read().await.get(&user_id).and_then(|user| user.game_id())
+    }
+
 }
 
 impl Deref for Users {
@@ -73,7 +109,7 @@ pub struct RegisteredUser {
     name: String,
     id: UserId,
     game_id: GameId,
-    character: usize,
+    character: Character,
     sender: mpsc::UnboundedSender<Result<Message, warp::Error>>
 }
 
@@ -84,6 +120,20 @@ pub enum User {
 }
 
 impl User {
+    pub fn character(&self) -> Result<Character, ApiError> {
+        match self {
+            Self::Unregistered(_) => Err(ApiError::Unregistered),
+            Self::Registered(user) => Ok(user.character)
+        }
+    }
+
+    pub fn game_id(&self) -> Option<GameId> {
+        match self {
+            Self::Unregistered(user) => user.id,
+            Self::Registered(user) => Some(user.id),
+        }
+    }
+
     pub fn send(&self, msg: GameMessage) {
         let sender = match self {
             Self::Unregistered(user) => &user.sender,
@@ -111,6 +161,25 @@ impl User {
                 self.send(GameMessage::Status(Status::Error("game is in progress".to_owned())));
                 false
             },
+        }
+    }
+
+    pub fn register(&mut self, name: String, character: Character) -> Result<(), ()> {
+        if let User::Unregistered(user) = self {
+            if let Some(game_id) = user.game_id {
+                *self = User::Registered {
+                    name,
+                    character,
+                    game_id,
+                    id: user.id,
+                    sender: user.sender,
+                };
+                Ok(())
+            } else {
+                Err(())
+            }
+        } else {
+            Err(())
         }
     }
 }

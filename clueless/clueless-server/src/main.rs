@@ -21,14 +21,6 @@ pub(crate) use user::*;
 pub(crate) mod game;
 pub(crate) use game::*;
 
-const RED: usize = 0;
-const YELLOW: usize = 1;
-const PURPLE: usize = 2;
-const GREEN: usize = 3;
-const WHITE: usize = 4;
-const BLUE: usize = 5;
-
-
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();

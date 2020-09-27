@@ -153,6 +153,13 @@ pub enum Status {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ApiError {
+    NoSuchUser,
+    InvalidRegistration,
+    Unregistered,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Character {
     Yellow,
     Red,
