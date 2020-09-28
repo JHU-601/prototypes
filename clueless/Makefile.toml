@@ -1,0 +1,50 @@
+[config]
+default_to_workspace = false
+
+[tasks.format]
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt", "--", "--emit=files"]
+
+[tasks.build-common]
+command = "cargo"
+args = ["build", "--package", "clueless-common"]
+
+[tasks.build-ui]
+install_crate = "wasm-pack"
+command = "wasm-pack"
+args = ["build", "--target", "web", "--out-name", "clueless-client", "--out-dir", "static", "clueless-client"]
+dependencies = ["build-common"]
+
+[tasks.copy-ui]
+script_runner = "@shell"
+script = ['cp -r clueless-client/static .']
+
+[tasks.build-backend]
+command = "cargo"
+args = ["build"]
+dependencies = ["build-common", "build-ui", "copy-ui"]
+
+[tasks.check]
+install_crate = "clippy"
+command = "cargo"
+args = ["clippy", "-D", "warnings"]
+
+[tasks.test]
+command = "cargo"
+args = ["--workspace"]
+
+[tasks.run]
+env = { "RUST_LOG" = "debug" }
+command = "cargo"
+args = ["run"]
+dependencies = ["build-backend"]
+
+[tasks.run-server]
+dependencies = [
+  "build-common",
+  "build-ui",
+  "copy-ui",
+  "build-backend",
+  "run"
+]

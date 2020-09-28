@@ -8,7 +8,7 @@ pub async fn handle_user_message(id: UserId, msg: Message, users: &Users, games:
     } else {
         return;
     };
-    let game_msg: GameMessage = match serde_json::from_str(&contents) {
+    let game_msg: ClientMessage = match serde_json::from_str(&contents) {
         Ok(msg) => msg,
         Err(e) => {
             eprintln!("Error decoding message: {}\n:{}", contents, e);
@@ -17,13 +17,13 @@ pub async fn handle_user_message(id: UserId, msg: Message, users: &Users, games:
     };
 
     match game_msg {
-        GameMessage::NewGame => {
+        ClientMessage::PreGame(PreGameClientMsg::NewGame) => {
             new_game(id, users, games).await;
         },
-        GameMessage::JoinGame(game_id) => {
+        ClientMessage::PreGame(PreGameClientMsg::JoinGame(game_id)) => {
             join_game(id, game_id, users, games).await;
         },
-        GameMessage::Register(reg) => handle_registration(id, reg, users, games).await,
+        //GameMessage::Register(reg) => handle_registration(id, reg, users, games).await,
         other => {
             eprintln!("Got message {:?}", other);
             return;
@@ -31,10 +31,8 @@ pub async fn handle_user_message(id: UserId, msg: Message, users: &Users, games:
     };
 }
 
+/*
 pub async fn handle_registration(user_id: UserId, msg: Register, users: &Users, games: &Games) {
-    if let Some(game_id) = users.user_game(user_id) {
-
-    }
     let game_id = if let Some(user) = users.write().await.get_mut(&user_id) {
         match user.register(msg.display_name.clone(), msg.character) {
             Ok(_) => user.user_id().expect("registered a user not in game"),
@@ -47,6 +45,7 @@ pub async fn handle_registration(user_id: UserId, msg: Register, users: &Users, 
         return;
     };
 }
+*/
 
 #[derive(Clone, Default)]
 pub struct Users {
@@ -55,22 +54,21 @@ pub struct Users {
 
 impl Users {
     pub async fn user_action<F, G>(&self, user_id: UserId, action_fn: F) -> Result<G, ApiError>
-    where F: Fn(&User) -> G
+    where F: Fn(&User) -> Result<G, ApiError>
     {
-        match self.users.read().await.get(user_id) {
+        match self.users.read().await.get(&user_id) {
             Some(user) => action_fn(user),
             None => Err(ApiError::NoSuchUser),
         }
     }
 
-    pub async fn get_user(&self, user_id: UserId) -> Option<&User> {
-        self.users.read().await().get(user_id)
-    }
-
-    pub async fn send_to_user(&self, user_id: UserId, msg: GameMessage) {
+    pub async fn send_to_user(&self, user_id: UserId, msg: ServerMessage) -> bool {
         match self.read().await.get(&user_id) {
-            Some(user) => user.send(msg),
-            None => (),
+            Some(user) => {
+                user.send(msg);
+                true
+            },
+            None => false,
         }
     }
 
@@ -129,12 +127,12 @@ impl User {
 
     pub fn game_id(&self) -> Option<GameId> {
         match self {
-            Self::Unregistered(user) => user.id,
-            Self::Registered(user) => Some(user.id),
+            Self::Unregistered(user) => user.game_id,
+            Self::Registered(user) => Some(user.game_id),
         }
     }
 
-    pub fn send(&self, msg: GameMessage) {
+    pub fn send(&self, msg: ServerMessage) {
         let sender = match self {
             Self::Unregistered(user) => &user.sender,
             Self::Registered(user) => &user.sender,
@@ -150,15 +148,15 @@ impl User {
             Self::Unregistered(user) => {
                 if user.game_id.is_none() {
                     user.game_id = Some(game_id);
-                    self.send(GameMessage::GameId(game_id));
+                    self.send(PreGameServerMsg::Joined(game_id).into());
                     true
                 } else {
-                    self.send(GameMessage::Status(Status::Error("already in game".to_owned())));
+                    self.send(ServerMessage::Error("already in game".to_owned()));
                     false
                 }
             }
             _ => {
-                self.send(GameMessage::Status(Status::Error("game is in progress".to_owned())));
+                self.send(ServerMessage::Error("game is in progress".to_owned()));
                 false
             },
         }
@@ -167,13 +165,13 @@ impl User {
     pub fn register(&mut self, name: String, character: Character) -> Result<(), ()> {
         if let User::Unregistered(user) = self {
             if let Some(game_id) = user.game_id {
-                *self = User::Registered {
+                *self = User::Registered(RegisteredUser{
                     name,
                     character,
                     game_id,
                     id: user.id,
-                    sender: user.sender,
-                };
+                    sender: user.sender.clone(),
+                });
                 Ok(())
             } else {
                 Err(())

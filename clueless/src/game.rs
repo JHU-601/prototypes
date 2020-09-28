@@ -2,7 +2,7 @@ use super::*;
 use crate::user::*;
 use std::ops::Deref;
 
-static ALL_CHARACTERS: Vec<Character> = vec![
+static ALL_CHARACTERS: [Character; 6] = [
     Character::Yellow,
     Character::Red,
     Character::Purple,
@@ -17,6 +17,7 @@ pub struct Games {
 }
 
 impl Games {
+    /*
     pub async fn available_users(&self, game_id: GameId, users: &Users) -> Option<Vec<Character>> {
         if let Some(game) = self.games.read().await.get(&game_id) {
             let mut available = ALL_CHARACTERS.clone();
@@ -29,6 +30,7 @@ impl Games {
         }
 
     }
+    */
 
     pub async fn add_user(&self, user_id: UserId, game_id: GameId, users: &Users) -> bool {
         match self.games.write().await.get_mut(&game_id) {
@@ -59,39 +61,34 @@ pub struct ActiveGame {
 
 pub struct PreGame {
     id: GameId,
-    user_registrations: [Option<UserId>; 6],
-    available: Vec<Character>,
+    users: [Option<UserId>; 6],
+    reg_status: RegistrationStatus,
 }
 
 impl PreGame {
     async fn add_user(&mut self, user_id: UserId, users: &Users) -> bool {
-        eprintln!("{:?}", self.user_registrations);
-        for id_opt in self.user_registrations.iter() {
+        eprintln!("{:?}", self.users);
+        for id_opt in self.users.iter() {
             dbg!(id_opt);
             if let Some(id) = id_opt {
                 dbg!(id);
                 if let Some(user) = users.read().await.get(&id) {
                     dbg!(&user);
-                    user.send(GameMessage::UserJoined(user_id));
+                    user.send(RegistrationServerMsg::UserJoined(user_id).into());
                 } else {
                     eprintln!("error: user {} not found in game {}", id, self.id);
                 }
             }
         }
-        for id in self.user_registrations.iter_mut() {
+        for id in self.users.iter_mut() {
             if id.is_none() {
                 *id = Some(user_id);
                 break;
             }
         }
 
-        let msg = GameMessage::Available(self.available.clone().into());
-        if let Some(user) = users.read().await.get(&user_id) {
-            user.send(msg);
-            true
-        } else {
-            false
-        }
+        let msg = ServerMessage::Registration(self.reg_status.clone().into());
+        users.send_to_user(user_id, msg).await
     }
 }
 
@@ -99,15 +96,8 @@ impl Default for PreGame {
     fn default() -> Self {
         PreGame {
             id: GameId::new(),
-            user_registrations: [None; 6],
-            available: vec![
-                Character::Yellow,
-                Character::Red,
-                Character::Purple,
-                Character::Green,
-                Character::White,
-                Character::Blue,
-            ],
+            users: [None; 6],
+            reg_status: RegistrationStatus::default(),
         }
     }
 }
@@ -121,9 +111,9 @@ impl Game {
     fn full(&self) -> bool {
         match self {
             Self::Waiting(game) => {
-                eprintln!("{:#?}", game.user_registrations);
+                eprintln!("{:#?}", game.users);
 
-                game.user_registrations.iter().all(|reg| reg.is_some())
+                game.users.iter().all(|reg| reg.is_some())
             },
             _ => true,
         }
@@ -136,7 +126,6 @@ impl Game {
         }
     }
 
-    async fn 
 }
 
 impl Default for Game {
@@ -151,19 +140,19 @@ pub async fn join_game(user_id: UserId, game_id: GameId, users: &Users, games: &
     let is_full = match games.read().await.get(&game_id) {
         Some(game) => game.full(),
         None => {
-            users.send_to_user(user_id, GameMessage::Status(Status::Error("game not found".to_owned()))).await;
+            users.send_to_user(user_id, ServerMessage::Error("game not found".to_owned())).await;
             return
         }
     };
 
     if is_full {
-        users.send_to_user(user_id, GameMessage::Status(Status::Error("game is full".to_owned()))).await;
+        users.send_to_user(user_id, ServerMessage::Error("game is full".to_owned())).await;
         return;
     }
 
     if users.set_user_game(user_id, game_id).await &&
         !games.add_user(user_id, game_id, users).await {
-            users.send_to_user(user_id, GameMessage::Status(Status::Error("could not join game".to_owned()))).await;
+            users.send_to_user(user_id, ServerMessage::Error("could not join game".to_owned())).await;
             return
     }
 
@@ -186,7 +175,7 @@ pub async fn user_connected(ws: WebSocket, users: Users, games: Games) {
 
     eprintln!("User {} joined", user_id);
     let user = User::Unregistered(UnregisteredUser{ sender: tx, id: user_id, game_id: None });
-    user.send(GameMessage::UserId(user_id));
+    user.send(PreGameServerMsg::UserId(user_id).into());
 
     users.write().await.insert(user_id, user);
 
